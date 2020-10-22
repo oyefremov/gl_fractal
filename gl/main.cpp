@@ -202,8 +202,11 @@ void update_pattern() {
             pattern.erase(pattern.begin() + selected_vertex);
         }
     }
-    if (update_needed)
+    if (update_needed){
         fractal = build_fractal(pattern);
+        for (int i=0; i<10; ++i)
+            split_largest_2(fractal, pattern);
+    }
 }
 
 void process_mouse_move()
@@ -236,8 +239,8 @@ update_positions:
     update_pattern();
 }
 
-const auto screen_width = 1920;
-const auto screen_height = 1080;
+const auto screen_width = 1800;
+const auto screen_height = 900;
 
 void on_mouse_move(GLFWwindow* window, double xpos, double ypos) {
     mouse_pos = { xpos , ypos };
@@ -282,7 +285,7 @@ int main(void)
 
     // Create a windowed mode window and its OpenGL context
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    GLFWwindow* window = glfwCreateWindow(screen_width, screen_height, "Hello World", monitor, NULL);
+    GLFWwindow* window = glfwCreateWindow(screen_width, screen_height, "Hello World", 0/*monitor*/, NULL);
     if (!window)
     {
         glfwTerminate();
