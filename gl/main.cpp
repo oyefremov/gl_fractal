@@ -1,7 +1,3 @@
-#define GLEW_STATIC
-
-#include <GL/glew.h>
-
 #include <GLFW/glfw3.h>
 #include <cstdlib>
 #include <iostream>
@@ -55,26 +51,15 @@ double dist(const point2d& a, const point2d& b) {
     return sqrt(dist2(a, b));
 }
 double dist2(const point2d& p, const point2d& v, const point2d& w) {
-    // Return minimum distance between line segment vw and point p
-    auto l2 = dist2(v, w);  // i.e. |w-v|^2 -  avoid a sqrt
-    if (l2 == 0.0) return dist2(p, v);   // v == w case
-    // Consider the line extending the segment, parameterized as v + t (w - v).
-    // We find projection of point p onto the line.
-    // It falls where t = [(p-v) . (w-v)] / |w-v|^2
-    // We clamp t from [0,1] to handle points outside the segment vw.
+    auto l2 = dist2(v, w);
+    if (l2 == 0.0) return dist2(p, v);
     auto t = std::clamp(dot(p - v, w - v) / l2, 0.0, 1.0);
-    auto projection = v + t * (w - v);  // Projection falls on the segment
+    auto projection = v + t * (w - v);
     return dist2(p, projection);
 }
 point2d rotate(const point2d& a) {
     return { a.y, -a.x };
 }
-
-
-struct triangle {
-    color c;
-    point2d points[3];
-};
 
 using polyline = std::vector<point2d>;
 
@@ -102,7 +87,7 @@ void split(const point2d& p0, const point2d& p1, const polyline& pattern, int it
 
     point2d prev;
     for (auto& p : pattern) {
-        auto i = &p - &pattern[0];
+        auto i = (size_t)(&p - &pattern[0]);
         auto transformed = transform(p);
         if (i > 0 && dist2(pattern[i - 1], p) < max_len) {
             split(prev, transformed, pattern, iterations - 1, max_len, result);
@@ -163,7 +148,7 @@ void split_largest_2(polyline& fractal, const polyline& pattern) {
         auto l = dist2(p, fractal[i - 1]);
         if (l > max) max = l;
     }
-    max *= 0.9;
+    max *= 0.95;
     size_t capacity = fractal.size();
     for (auto& p : fractal) {
         auto i = &p - &fractal[0];
@@ -173,7 +158,7 @@ void split_largest_2(polyline& fractal, const polyline& pattern) {
             capacity += pattern.size() - 2;
         }
     }
-    if (capacity > 500000) return;
+    if (capacity > 1'000'000) return;
     polyline part;
     part.reserve(capacity);
     for (auto& p : fractal) {
@@ -254,9 +239,7 @@ update_positions:
 const auto screen_width = 1920;
 const auto screen_height = 1080;
 
-
 void on_mouse_move(GLFWwindow* window, double xpos, double ypos) {
-    //    mouse_pos = { xpos / 10.0 - screen_width / 20.0, -(ypos / screen_height * 20.0 - 10.0) };
     mouse_pos = { xpos , ypos };
     base_color = 1.0;
     process_mouse_move();
@@ -294,57 +277,23 @@ void on_key_pressed(GLFWwindow* window, int key, int scancode, int action, int m
 
 int main(void)
 {
-    //glutInit(&argc, argv);
-    //glutCreateWindow("GLEW Test");
-
-    GLFWwindow* window;
-
-    /* Initialize the library */
     if (!glfwInit())
         return -1;
 
-    /* Create a windowed mode window and its OpenGL context */
+    // Create a windowed mode window and its OpenGL context
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    window = glfwCreateWindow(screen_width, screen_height, "Hello World", monitor, NULL);
+    GLFWwindow* window = glfwCreateWindow(screen_width, screen_height, "Hello World", monitor, NULL);
     if (!window)
     {
         glfwTerminate();
         return -1;
     }
 
-    /* Make the window's context current */
+    // Make the window's context current
     glfwMakeContextCurrent(window);
 
-
-    GLenum err = glewInit();
-    if (GLEW_OK != err)
-    {
-        /* Problem: glewInit failed, something is seriously wrong. */
-        std::cout << "Error: " << glewGetErrorString(err) << "\n";
-        return -1;
-
-    }
-    std::cout << "Status: Using GLEW " << glewGetString(GLEW_VERSION) << "\n";
-    std::cout << "Status: OpenGL version " << glGetString(GL_VERSION) << "\n";
-
-
-
+    // Enable v-sync
     glfwSwapInterval(1);
-
-
-    pattern = { {80, 600},{400, 600}, {900, 400}, {1400, 600}, {1720, 600} };
-
-    fractal = build_fractal(pattern);
-
-    std::vector<triangle> triangles;
-    triangles.resize(10);
-
-    for (auto& t : triangles) {
-        t.c = { rand() % 2 * 100,rand() % 2 * 100,rand() % 2 * 100 };
-        point2d p0 = { std::rand() % 200 / 100.0 - 1, std::rand() % 200 / 100.0 - 1 };
-        for (auto& p : t.points)
-            p = p0;
-    }
 
     glfwSetCursorPosCallback(window, &on_mouse_move);
     glfwSetMouseButtonCallback(window, &on_mouse_button);
@@ -356,31 +305,17 @@ int main(void)
     glEnable(GL_POINT_SMOOTH);
     glEnable(GL_LINE_SMOOTH);
 
-    //    glOrtho(0, screen_width, 0, screen_height, -1, 1);
     glOrtho(0.0, screen_width, screen_height, 0, -1, 1);
 
-    GLuint buf_id;
-    glGenBuffers(1, &buf_id);
-    glBindBuffer(GL_ARRAY_BUFFER, buf_id);
+    // Initil setup:
+    pattern = { {80, 600},{400, 600}, {900, 400}, {1400, 600}, {1720, 600} };
+    fractal = build_fractal(pattern);
 
-    float data[] = { -0.5, -0.5, -0.0, 0.5, 0.5, -0.5 };
-    glBufferData(GL_ARRAY_BUFFER, sizeof(data), data, GL_STATIC_DRAW);
-
-    /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
-        ///* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
-        //glColor3b(40, 0, 0);
-        //glBegin(GL_TRIANGLES);
-        //glVertex2d(-0.5, -0.5);
-        //glVertex2d(-0.0, 0.5);
-        //glVertex2d(0.5, -0.5);
-        //glEnd();
-
-
-
+        // Selected segment
         if (selected_segment < pattern.size()) {
             glLineWidth(5);
             glColor3b(20, 20, 100);
@@ -390,27 +325,24 @@ int main(void)
             glEnd();
         }
 
-
-        glColor3f(0.3 * base_color, 0.3 * base_color, 0.3 * base_color);
-        glLineWidth(3.0);
-        glBegin(GL_LINE_STRIP);
-
-        for (auto& p : pattern)
-            glVertex2dv(&p.x);
-
-        glEnd();
-
-
+        // Fractal
         glColor3b(100, 100, 100);
-        glLineWidth(0.2);
+        glLineWidth(0.2f);
         glBegin(GL_LINE_STRIP);
-
         for (auto& p : fractal)
             glVertex2dv(&p.x);
-
         glEnd();
 
 
+        // Pattern
+        glColor4d(0.2, 0.7, 0.3, base_color);
+        glLineWidth(3.0);
+        glBegin(GL_LINE_STRIP);
+        for (auto& p : pattern)
+            glVertex2dv(&p.x);
+        glEnd();
+
+        // Selected node
         if (selected_vertex < pattern.size()) {
             glPointSize(15);
             glColor3b(20, 20, 100);
@@ -419,31 +351,17 @@ int main(void)
             glEnd();
         }
 
-        //glColor3b(100, 100, 100);
-        //glPointSize(10);
-        //glBegin(GL_POINTS);
-        //glVertex2dv(&mouse_pos.x);
-        //glEnd();
-
-        /* Swap front and back buffers */
+        // Swap front and back buffers
         glfwSwapBuffers(window);
 
-        /* Poll for and process events */
+        // Poll for and process events
         glfwPollEvents();
 
-
+        // Grow fractal
         split_largest_2(fractal, pattern);
+
+        // Fade pattern
         base_color *= 0.95;
-
-        //for (auto& t : triangles) {
-        //    for (auto& p : t.points) {
-        //        p.x += (std::rand() % 11 - 5) / 1000.0;
-        //        p.y += (std::rand() % 11 - 5) / 1000.0;
-        //        p.x = std::clamp(p.x, -1.0, 1.0);
-        //        p.y = std::clamp(p.y, -1.0, 1.0);
-        //    }
-        //}
-
     }
 
     glfwTerminate();
